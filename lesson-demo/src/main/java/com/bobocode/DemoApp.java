@@ -1,14 +1,15 @@
 package com.bobocode;
 
-import java.util.*;
+import com.bobocode.data.Accounts;
+
+import java.time.LocalDate;
 
 public class DemoApp {
     public static void main(String[] args) {
-        String s = DemoApp.newList();
-    }
-
-    private static <T extends List<T>> T newList() {
-        return (T) new ArrayList();
+        var accounts = Accounts.generateAccountList(10);
+        var emailToBirthdayTable = new HashTable<String, LocalDate>();
+        accounts.forEach(a -> emailToBirthdayTable.put(a.getEmail(), a.getBirthday()));
+        emailToBirthdayTable.printTable();
     }
 }
 
