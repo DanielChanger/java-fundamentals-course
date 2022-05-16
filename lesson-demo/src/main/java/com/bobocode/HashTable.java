@@ -63,8 +63,9 @@ public class HashTable<K, V> {
         var oldBuckets = buckets;
         buckets = newBuckets(oldBuckets.length * CAPACITY_MULTIPLIER);
         for (var bucket : oldBuckets) {
-            if (bucket != null) {
+            while (bucket != null) {
                 put(bucket.key, bucket.value);
+                bucket = bucket.next;
             }
         }
     }
@@ -102,7 +103,7 @@ public class HashTable<K, V> {
 
     private static void printBucket(Node<?, ?> bucket) {
         while (bucket != null) {
-            System.out.print(bucket.key + "(" + bucket.key.hashCode() + ")" + ":" + bucket.value);
+            System.out.print(bucket.key + ":" + bucket.value);
             if (bucket.next != null) {
                 System.out.print(" -> ");
             }
