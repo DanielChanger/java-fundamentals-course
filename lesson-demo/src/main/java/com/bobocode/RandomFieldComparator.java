@@ -1,6 +1,14 @@
 package com.bobocode;
 
+import lombok.SneakyThrows;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Objects;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * A generic comparator that is comparing a random field of the given class. The field is either primitive or
@@ -12,6 +20,9 @@ import java.util.Comparator;
  * @param <T> the type of the objects that may be compared by this comparator
  */
 public class RandomFieldComparator<T> implements Comparator<T> {
+
+    private final Class<T> targetType;
+    private final Field field;
 
     public RandomFieldComparator(Class<T> targetType) {
         this(targetType, true);
@@ -25,7 +36,59 @@ public class RandomFieldComparator<T> implements Comparator<T> {
      * @param compareOnlyAccessibleFields config property indicating if only publicly accessible fields can be used
      */
     public RandomFieldComparator(Class<T> targetType, boolean compareOnlyAccessibleFields) {
-        throw new UnsupportedOperationException("This method should be implemented"); // todo:
+        Objects.requireNonNull(targetType);
+        this.field = getRandomField(targetType, compareOnlyAccessibleFields);
+        this.field.setAccessible(true);
+        this.targetType = targetType;
+    }
+
+    private static Field[] getFields(Class<?> targetType, boolean compareOnlyAccessibleFields) {
+        var fieldsStream = Arrays.stream(targetType.getDeclaredFields())
+                                 .filter(RandomFieldComparator::isComparableOrPrimitive);
+
+        if (compareOnlyAccessibleFields) {
+            fieldsStream = fieldsStream.filter(field -> RandomFieldComparator.isAccessible(targetType, field));
+        }
+
+        return fieldsStream.toArray(Field[]::new);
+    }
+
+
+    private static Field getRandomField(Class<?> targetType, boolean compareOnlyAccessibleFields) {
+        var fields = getFields(targetType, compareOnlyAccessibleFields);
+        validateFieldsArePresent(fields, targetType, compareOnlyAccessibleFields);
+        int randomIndex = ThreadLocalRandom.current().nextInt(0, fields.length - 1);
+        return fields[randomIndex];
+    }
+
+    private static void validateFieldsArePresent(Field[] fields, Class<?> targetType, boolean compareOnlyAccessibleFields) {
+        if (fields.length == 0) {
+            String message = "%s doesn't have any comparable or primitive properties".formatted(targetType.getName());
+            message += compareOnlyAccessibleFields ? " with public access or public getter" : "";
+            throw new IllegalArgumentException(message);
+        }
+    }
+
+    private static boolean isComparableOrPrimitive(Field field) {
+        return Comparable.class.isAssignableFrom(field.getType())
+                || field.getType().isPrimitive();
+    }
+
+    private static boolean isAccessible(Class<?> targetType, Field field) {
+        return isPublic(field) || hasPublicGetter(targetType, field);
+    }
+
+    private static boolean isPublic(Field field) {
+        return (field.getModifiers() & Modifier.PUBLIC) > 0;
+    }
+
+    private static boolean hasPublicGetter(Class<?> targetType, Field field) {
+        return Arrays.stream(targetType.getDeclaredMethods())
+                     .anyMatch(method -> isGetterForField(method, field));
+    }
+
+    private static boolean isGetterForField(Method method, Field field) {
+        return method.getName().equalsIgnoreCase("get" + field.getName());
     }
 
     /**
@@ -33,8 +96,15 @@ public class RandomFieldComparator<T> implements Comparator<T> {
      * for the fields, and it treats null value grater than a non-null value (nulls last).
      */
     @Override
+    @SneakyThrows
     public int compare(T o1, T o2) {
-        throw new UnsupportedOperationException("This method should be implemented"); // todo:
+        Objects.requireNonNull(o1);
+        Objects.requireNonNull(o2);
+
+        var field1 = (Comparable) field.get(o1);
+        var field2 = (Comparable) field.get(o2);
+
+        return Comparator.<Comparable>nullsFirst(Comparator.naturalOrder()).compare(field1, field2);
     }
 
     /**
@@ -45,6 +115,6 @@ public class RandomFieldComparator<T> implements Comparator<T> {
      */
     @Override
     public String toString() {
-        throw new UnsupportedOperationException("This method should be implemented"); // todo:
+        return "Random field comparator of class '%s' is comparing '%s'".formatted(targetType, field.getName());
     }
 }
